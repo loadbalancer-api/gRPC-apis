@@ -1,0 +1,27 @@
+##-----------------------------------------------------------------------------
+## COPYRIGHT ? 
+##-----------------------------------------------------------------------------
+#property('description', 'Create Real server')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+
+##Setting input parameters
+#param($real, 'ip','in' , 'prompt=Member IP address')
+#param($realname, 'string','in' , 'prompt=Member Name')
+#param($VIRT_NAME, 'string', 'in' , 'prompt=Virtual service name')
+        
+#set($groupName = $VIRT_NAME+"_group")
+		
+## Create server and add to the group
+/c/slb/real $realname
+        ena
+        ipver v4
+        rip $real
+/c/slb/group $groupName/add $realname
+     
+          
+## Apply the configurations and save
+        apply
+        save
+

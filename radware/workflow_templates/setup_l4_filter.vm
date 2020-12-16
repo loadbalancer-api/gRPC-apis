@@ -1,0 +1,65 @@
+#property('description', 'Configures L4 filter')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+#typedef('l4_filter')
+    #param($name, 'string')
+    #param($id, 'int')
+    #param($action, 'string')
+    #param($ip_version, 'string')
+    #param($src_ip_address, 'string')
+    #param($src_ip_mask, 'ip')
+    #param($dst_ip_address, 'string')
+    #param($dst_ip_mask, 'ip')
+    #param($group, 'string')
+    #param($port, 'int')
+    #param($reverse, 'string')
+    #param($returntolasthop, 'string')
+    #param($op, 'string')
+    #param($vlan, 'string')
+    #param($proto, 'string')
+#end
+
+#param($filter, 'l4_filter', 'in')
+
+#set($rule = $filter)
+#set($groupName = $rule.group+"_group")
+#if($rule.op == 'ADD')
+	#create_filter($rule.id, $rule.name, $rule.action, $rule.ip_version, $rule.src_ip_address, $rule.src_ip_mask, $rule.dst_ip_address, $rule.dst_ip_mask, $groupName, $rule.port, $rule.vlan, $rule.proto, $rule.reverse, $rule.returntolasthop)
+#else
+	#delete_filter($rule.id, $rule.port)
+#end
+    
+#macro(create_filter, $id, $name, $action, $ipver, $sip, $smask, $dip, $dmask, $group, $port, $vlan, $proto, $reverse, $returntolasthop)
+/c/slb/filt $id
+        name $name
+        ena
+        action $action
+        ipver $ipver
+        sip $sip
+        smask $smask
+        dip $dip
+        dmask $dmask
+        group $group
+        rport 0
+        vlan $vlan
+        add $port
+        protocol $proto
+/c/slb/filt $id/adv
+        reverse $reverse
+        rtsrcmac $returntolasthop
+/c/slb/port $port
+        filter enable
+        add $name
+#end
+
+#macro(delete_filter, $id, $port)
+/c/slb/filt $id
+        del
+/c/slb/port $port
+        filter disable
+#end
+
+##Apply configuration and save
+	apply
+	save

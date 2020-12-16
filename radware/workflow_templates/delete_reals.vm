@@ -1,0 +1,20 @@
+##-----------------------------------------------------------------------------
+## COPYRIGHT ? 
+##-----------------------------------------------------------------------------
+#property('description', 'Delete Real server')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+
+##Setting input parameters
+#param($realname, 'string','in' , 'prompt=Members Name')
+       
+	
+## Create server and add to the group
+    /c/slb/real $realname
+        del
+          
+## Apply the configurations and save
+        apply
+        save
+

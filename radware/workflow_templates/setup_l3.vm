@@ -1,0 +1,68 @@
+#property('description', 'Configures L3 interfaces')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+#typedef('l3_ha_interface')
+    #param($name, 'string')
+    #param($vlan, 'int')
+    #param($l3_primary_ip_address, 'ip')
+    #param($l3_secondary_ip_address, 'ip')
+    #param($floating_ip_address, 'ip')
+    #param($ip_netmask, 'ip')
+    #param($ip_prefix, 'int')
+    #param($ip_version, 'string')
+    #param($gw, 'ip', 'in')
+    #param($port, 'int')
+#end
+
+#param($l3_interface, 'l3_ha_interface', 'in')
+#param($dgw, 'ip', 'in')
+#param($dgw_ip_version, 'string')
+#param($ha_enabled, 'bool', 'in')
+
+#set($interface = $l3_interface)
+#set($address = $interface.l3_primary_ip_address)
+#set($peer_address = $interface.l3_secondary_ip_address)
+#set($name = $interface.name)
+#set($default_index = $interface.port)
+
+#if($interface.ip_version == 'v4')
+	#create_interface($name, $address, $interface.ip_netmask, $interface.vlan, $default_index, $interface.ip_version, $ha_enabled, $peer_address)
+#else
+    #create_interface($name, $address, $interface.ip_prefix, $interface.vlan, $default_index, $interface.ip_version, $ha_enabled, $peer_address)
+#end
+#create_port_vlan($interface.port, $interface.vlan)
+
+#macro(create_interface, $name, $address, $ip_netmask, $vlan, $interface_id, $ipver, $ha_enabled, $peer_address)
+/c/l3/if $interface_id
+	ipver $ipver
+    addr $address
+	mask $ip_netmask
+	vlan $vlan
+	ena
+    descr $name
+
+    #if($ha_enabled)
+        #if($peer_address == '0.0.0.0')
+            #error("Peer address is 0.0.0.0 for $address!!")
+        #end
+        peer $peer_address
+    #end
+#end
+
+#macro(create_port_vlan, $port, $vlan)
+/c/port $port
+    name "$vlan"
+    pvid $vlan
+/c/l2/vlan $vlan
+    enable
+    name "$vlan"
+    learn enable
+    def $port
+
+#end
+
+#
+##Apply configuration and save
+	apply
+	save

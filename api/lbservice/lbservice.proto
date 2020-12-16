@@ -1,0 +1,227 @@
+syntax = "proto3";
+package LoadBalancer;
+option go_package="api/lbservice";
+
+message Instance {
+    string mgmt_mac_addr = 1;
+    string mgmt_ip_addr = 2;
+    string label = 3;
+    enum license {
+        LB_INVALID_LIC = 0;
+        LB_1GIG_LIC = 1024;
+        LB_10GIG_LIC = 10240;
+    }
+    int32 lic = 4;
+    string lic_token = 5;
+    string vip = 6;
+    string lb_user_name = 7;
+    string lb_password = 8;
+    int32  lb_https_port = 9;
+    enum lbhealthchk {
+        nocheck = 0;
+        arp = 1;
+        clustercfr = 2;
+        clustercme = 3;
+        dhcp = 4;
+        dns = 5;
+        dssp = 6;
+        ftp = 7;
+        h2 = 8;
+        h2c = 9;
+        http = 10;
+        httphead = 11;
+        https = 12;
+        icmp = 13;
+        imap = 14;
+        ldap = 15;
+        ldaps = 16;
+        link = 17;
+        logexp = 18;
+        nntp = 19;
+        pop3 = 20;
+        radius_aa = 21;
+        radius_acc = 22;
+        radius_auth = 23;
+        rtsp = 24;
+        script = 25;
+        sip = 26;
+        sipoptions = 27;
+        smtp = 28;
+        snmp = 29;
+        sslh = 30;
+        sslhtls = 31;
+        sslhv3 = 32;
+        tcp = 33;
+        tcphalfopen = 34;
+        tftp = 35;
+        udp = 36;
+        udpdns = 37;
+        virtualwire = 38;
+        wsp = 39;
+        wtls = 40;
+        wtls_wsp = 41;
+        wtls_wtp = 42;
+        wtp = 43;
+        wts = 44;
+    }
+    string lb_health = 10;
+    enum lbmetric {
+        roundrobin = 0;
+        minmisses = 1;
+        responsetime = 2;
+        serverbandwidth = 3;
+        hash = 4;
+        persistenthash = 5;
+        leastconnectionperservice = 6;
+        highestrandomweight = 7;
+    }
+    string lb_metric = 11;
+    bool   lb_dsr = 12;
+    string lb_group_name = 13;
+    string lb_service_name = 14;
+    int32  lb_l4_port = 15;
+}
+
+message InstanceId {
+    string instance_id = 1;
+}
+
+message CreateInstanceRequest {
+    Instance instance = 1;
+    bool test_only = 2;
+}
+
+message CreateInstanceResponse {
+    InstanceId id = 1;
+}
+
+message DestroyInstanceRequest {
+    string label = 1;
+    string lb_service_name = 2;
+    bool test_only = 3;
+}
+
+message DestroyInstanceResponse {
+    bool destroy_instance_resp = 1;
+}
+
+message L3Interface {
+    InstanceId id = 1;
+    string label = 2;
+    string lb_interface_name = 3;
+    int32  lb_vlan = 4;
+    string lb_primary_ip = 5;
+    string lb_secondary_ip = 6;
+    string lb_ip_mask = 7;
+    int32 lb_port = 8;
+    bool lb_is_v4 = 9;
+    bool enable_ha = 10;
+}
+
+message CfgL3InterfacesRequest {
+    repeated L3Interface interfaces = 1;
+    bool test_only = 2;
+}
+
+message CfgL3InterfacesResponse {
+    bool cfg_l3_interfaces_resp = 1;
+}
+
+message L4Filter {
+    InstanceId id = 1;
+    string label = 2;
+    string name = 3;
+    enum action {
+    	allow = 0;
+        deny = 1;
+        nat = 2;
+        redirect = 3;
+        goto = 4;
+        outboundllb = 5;
+    }
+    int32 rule_id = 4;
+    string act = 5;
+    bool lb_is_v4 = 6;
+    string src_ip = 7;
+    string src_mask = 8;
+    string dst_ip = 9;
+    string dst_mask = 10;
+    string group = 11;
+    int32 port = 12;
+    string vlan = 13;
+    string protocol = 14;
+    bool reverse_session = 15;
+    bool return_to_last_hop = 16;
+	enum Operation {
+        ADD = 0;
+        DELETE = 1;
+      }
+    string op = 17;
+}
+
+message CfgL4FilterRequest {
+    repeated L4Filter filt = 1;
+    bool test_only = 2;
+}
+
+message CfgL4FilterResponse {
+    bool cfg_l4_filter_resp = 1;
+}
+
+message EndPointCfg {
+    InstanceId id = 1;
+    string label = 2;
+    string ip_address = 3;
+    enum Operation {
+        ADD = 0;
+        DELETE = 1;
+      }
+      int32 op = 4;
+      string asac_instance_name = 5;
+      string lb_group_name = 6;
+      string lb_service_name = 7;
+}
+
+message ProvisionEndPointRequest {
+    repeated EndPointCfg ep = 1;   
+    bool test_only = 2;
+}
+
+message ProvisionEndPointResponse {
+    bool provision_end_point_resp = 1;
+}
+
+message EndPointInstance {
+    string ip_address = 1;
+    string asac_instance_name = 2;
+}
+
+message QueryInstanceRequest {
+    string label = 1;
+    bool test_only = 2;
+}
+
+message QueryInstanceResponse {
+    repeated EndPointInstance query_instance = 1;
+}
+
+message QueryAllInstancesRequest {
+}
+
+message QueryAllInstancesResponse {
+    repeated InstanceId query_ids_list = 1;
+}
+
+service LoadBalancerService {
+    rpc CreateService(CreateInstanceRequest) returns (CreateInstanceResponse) {};
+
+    rpc DestroyService(DestroyInstanceRequest) returns (DestroyInstanceResponse) {};
+
+    rpc ProvisionEndPointService(ProvisionEndPointRequest) returns (ProvisionEndPointResponse) {};
+
+    rpc QueryInstanceService(QueryInstanceRequest) returns (QueryInstanceResponse) {};
+    
+    rpc ConfigL4FilterService(CfgL4FilterRequest) returns (CfgL4FilterResponse) {};
+
+    rpc ConfigL3InterfacesService(CfgL3InterfacesRequest) returns (CfgL3InterfacesResponse) {};
+}

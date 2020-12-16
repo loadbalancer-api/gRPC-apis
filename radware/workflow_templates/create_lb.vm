@@ -1,0 +1,49 @@
+##-----------------------------------------------------------------------------
+## COPYRIGHT ?
+##-----------------------------------------------------------------------------
+#property('description', 'Create Virtual Service')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+
+##Setting input parameters
+#param($VIRT_NAME, 'string', 'in' , 'prompt=Virtual service name')
+#param($VIP, 'ip','in', 'prompt=Virtual service IP address')
+#param($L4PORT, 'string','in', 'prompt=Virtual service L4 Port')
+#param($HEALTH, 'string','in', 'prompt=Health check protocol')
+#param($METRIC, 'string','in', 'prompt=Metric used to select next server in group')
+
+## Create group
+#set($groupName = $VIRT_NAME+"_group")
+/c/slb/group $groupName
+        ipver v4
+        metric $METRIC
+        health $HEALTH
+        viphl  dis
+## Create the virtual service
+/c/slb/virt $VIRT_NAME
+        ena
+        ipver v4
+        vip $VIP
+/c/slb/virt $VIRT_NAME/service 80 http
+        group $groupName
+        rport 80
+/c/slb/virt $VIRT_NAME/service $L4PORT basic-slb
+        group $groupName
+        rport $L4PORT
+        nonat ena
+        satisrt 500
+/c/slb/accel/caching
+        on
+/c/slb
+        on
+/c/slb/adv
+        direct ena
+        vstat ena
+        vmasport ena
+        submac "ena"
+
+## Apply the configurations and save
+        apply
+        save
+

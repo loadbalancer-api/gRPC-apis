@@ -1,0 +1,18 @@
+#property('description', 'Read Real Servers')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+#param($output, 'object', 'out')
+
+#set($output = {})
+
+#set($currReals = [])
+
+##read info about real on ADC
+#set($bean = $alteon.newBean('SlbNewCfgEnhRealServerEntry'))
+#set($beans = $alteon.readAll($bean))
+	#foreach ($bean in $beans)
+      #set($dummy = $currReals.add({"asacname":$bean.index, "asacip":$bean.ipAddr}))
+	#end
+#set($sysName = $alteon.readBean('AdcSystem'))
+#set($dummy = $output.put("LbGroup", $currReals))

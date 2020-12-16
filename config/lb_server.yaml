@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lb-server-pod
+  labels:
+    app: lb-server
+spec:
+  containers:
+  - name: lb-server
+    image: dockerhub.cisco.com/asac-dev-docker/lbserver:v1.2
+    imagePullPolicy: Always
+    ports:
+    - containerPort: 8080
+      name: server-lb-port
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: lb-server
+spec:
+  selector:
+    app: lb-server
+  type: NodePort
+  ports:
+  - name: tcp
+    protocol: TCP
+    port: 8080
+    targetPort: server-lb-port
+    nodePort: 31000
+

@@ -1,0 +1,41 @@
+##-----------------------------------------------------------------------------
+## COPYRIGHT ? 
+##-----------------------------------------------------------------------------
+#property('description', 'Destroy service')
+#device($alteon, 'type=alteon', 'prompt=Choose Alteon')
+#select($alteon)
+
+#param($service_name, 'type=string', 'direction=in')
+#set($group_id = "${service_name}_group")
+
+#set($search_server = $alteon.newBean('SlbNewCfgEnhGroupRealServerEntry'))
+
+##calls the bean that maps a group to real servers
+#set($search_server.RealServGroupIndex = $group_id)
+
+##sets the group identifier
+#set($found_servers = $alteon.readAll($search_server))
+
+##returns all beans that have an index matching the group identifier
+#foreach($found_server in $found_servers)
+##delete real servers associated with the group
+  /c/slb/real $found_server.ServIndex
+  del
+#end
+
+##delete the virtual service
+/c/slb/virt $service_name
+del
+
+##delete the group
+/c/slb/group $group_id
+del
+
+##delete the L3 network
+/c/l3/if 1
+del
+
+## Apply the configurations and save
+        apply
+        save
+
