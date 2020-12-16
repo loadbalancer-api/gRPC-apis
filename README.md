@@ -85,7 +85,7 @@ to attach
 ```
 docker exec -it <container name> bash
 ```
-to test using k8s
+to test using k8s (LaaS)
 ```
 kubectl apply -f config/lb_server.yaml
 ```
