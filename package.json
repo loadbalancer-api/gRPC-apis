@@ -1,0 +1,19 @@
+{
+  "name": "vdirect-server-install-deb-4-12-0-1.deb",
+  "version": "1.0.0",
+  "description": "Radware vdirect debian package",
+  "main": "index.js",
+  "scripts": {
+    "test": "exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/msherif1234/loadbalancers-api.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/msherif1234/loadbalancers-api/issues"
+  },
+  "homepage": "https://github.com/msherif1234/loadbalancers-api#readme"
+}
