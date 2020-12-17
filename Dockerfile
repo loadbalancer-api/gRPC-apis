@@ -1,13 +1,13 @@
 FROM golang:1.13.6 AS builder
 ARG AUSER
 ARG AKEY
-ARG package
+ARG APackage
 ENV creds=$AUSER:$AKEY
-
+ENV artifactory=$APackage
 WORKDIR /workspace
-ADD https://$creds@$package/vdirect-server-install-deb-4-12-0-1.deb  /workspace/
+ADD https://$creds@$artifactory/vdirect-server-install-deb-4-12-0-1.deb  /workspace/
 
-ADD https://$creds@$package/license-server-2-3-0-1.tgz  /workspace/
+ADD https://$creds@$artifactory/license-server-2-3-0-1.tgz  /workspace/
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update \
     && apt-get install -y --no-install-recommends \
