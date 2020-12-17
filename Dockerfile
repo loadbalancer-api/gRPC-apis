@@ -1,12 +1,13 @@
 FROM golang:1.13.6 AS builder
 ARG AUSER
 ARG AKEY
+ARG package
 ENV creds=$AUSER:$AKEY
 
 WORKDIR /workspace
-ADD https://$creds@engci-maven-master.cisco.com/artifactory/asac-cdn/vdirect-server-install-deb-4-12-0-1.deb  /workspace/
+ADD https://$creds@$package/vdirect-server-install-deb-4-12-0-1.deb  /workspace/
 
-ADD https://$creds@engci-maven-master.cisco.com/artifactory/asac-cdn/license-server-2-3-0-1.tgz  /workspace/
+ADD https://$creds@$package/license-server-2-3-0-1.tgz  /workspace/
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update \
     && apt-get install -y --no-install-recommends \

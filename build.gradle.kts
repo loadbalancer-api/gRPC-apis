@@ -1,4 +1,5 @@
 val loadbalanceServerImage = System.getenv("REPO") + version
+val package = System.getenv("Package")
 val USER = System.getenv("USER")
 val KEY = System.getenv("KEY")
 
