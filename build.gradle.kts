@@ -1,5 +1,4 @@
 val loadbalanceServerImage = System.getenv("REPO") + version
-val Package = System.getenv("Package")
 val USER = System.getenv("USER")
 val KEY = System.getenv("KEY")
 
@@ -13,7 +12,7 @@ tasks {
                 commandLine("bash", "-c", "./generate.sh")
            }
             exec {
-                commandLine("docker build --no-cache --build-arg AUSER=$USER --build-arg AKEY=$KEY --build-arg APackage=$Package . -f ./Dockerfile -t $loadbalanceServerImage".split(" "))
+                commandLine("docker build --no-cache --build-arg AUSER=$USER --build-arg AKEY=$KEY . -f ./Dockerfile -t $loadbalanceServerImage".split(" "))
             }
 
         }
