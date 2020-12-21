@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
@@ -100,6 +101,41 @@ func serverPrepareHttphdr(req []byte, url string, op string, content string) (r 
 
 }
 
+func readResponce(req []byte, url string, op string, content string) (complete bool, uri string) {
+	var s queryApiShortRsp
+	r, err := serverPrepareHttphdr(req, url, op, content)
+
+	res, err := serverSend(r)
+	if err != nil {
+		log.Fatal("Error sending to vdirect server", err)
+	}
+
+	err = json.Unmarshal(res, &s)
+	if err != nil {
+		log.Fatal("Json Unmarshall failed :", err)
+	}
+	//log.Printf("short queryapi response %+v", s)
+
+	return s.Complete, s.URI
+}
+
+func readFullResponce(req []byte, url string) (s queryApiRsp, err error) {
+	r, err := serverPrepareHttphdr(req, url, "GET", "")
+
+	res, err := serverSend(r)
+	if err != nil {
+		log.Fatal("Error in Destroying service", err)
+	}
+
+	err = json.Unmarshal(res, &s)
+	if err != nil {
+		log.Println("Json Unmarshall failed :", err)
+	}
+	//log.Printf("full queryapi response %+v", s)
+
+	return s, err
+}
+
 func addAdcToVdirect(req *lbservice.CreateInstanceRequest) (id string, err error) {
 	instance := req.GetInstance()
 	url := vdirectBaseUrl + "container/"
@@ -122,6 +158,7 @@ func addAdcToVdirect(req *lbservice.CreateInstanceRequest) (id string, err error
 		ExtensionProperties struct {
 		} `json:"extensionProperties"`
 	}
+
 	type Response struct {
 		URI  string `json:"uri"`
 		Name string `json:"name"`
@@ -235,9 +272,17 @@ func createAlteonLb(req *lbservice.CreateInstanceRequest) error {
 		log.Fatalln(err)
 	}
 
-	r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/json")
+	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	count := 0
+	for c != true && count < MAX_COUNT {
+		time.Sleep(2 * time.Second)
+		c, uri = readResponce(requestBody, uri, "GET", "")
+		count++
+	}
+	if count == MAX_COUNT {
+		err = fmt.Errorf("Timed out creating Loadbalancer instance %s", instance.GetLabel())
+	}
 
-	_, err = serverSend(r)
 	return err
 }
 
@@ -261,9 +306,17 @@ func licAlteonLb(req *lbservice.CreateInstanceRequest) error {
 		log.Fatalln(err)
 	}
 
-	r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/json")
+	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	count := 0
+	for c != true && count < MAX_COUNT {
+		time.Sleep(2 * time.Second)
+		c, uri = readResponce(requestBody, uri, "GET", "")
+		count++
+	}
+	if count == MAX_COUNT {
+		err = fmt.Errorf("Timed out configuring lb license")
+	}
 
-	_, err = serverSend(r)
 	return err
 }
 
@@ -325,16 +378,23 @@ func configL3Network(req *lbservice.CfgL3InterfacesRequest) error {
 		if req.GetTestOnly() {
 			continue
 		}
-		r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/json")
-
-		_, err = serverSend(r)
+		c, uri := readResponce(requestBody, url, "POST", "application/json")
+		count := 0
+		for c != true && count < MAX_COUNT {
+			time.Sleep(2 * time.Second)
+			c, uri = readResponce(requestBody, uri, "GET", "")
+			count++
+		}
+		if count == MAX_COUNT {
+			err = fmt.Errorf("Timed out Configuring L3 interfaces")
+		}
 	}
 
 	return err
 }
 
 func (*server) CreateService(ctx context.Context, req *lbservice.CreateInstanceRequest) (*lbservice.CreateInstanceResponse, error) {
-	//log.Printf("CreateService function was invoked with %v\n", req)
+	log.Printf("CreateService function was invoked with %v\n", req)
 
 	lbID, err := addAdcToVdirect(req)
 	if err != nil {
@@ -384,16 +444,16 @@ func (*server) CreateService(ctx context.Context, req *lbservice.CreateInstanceR
 	if err != nil {
 		log.Fatal("Error create Alteon Lb", err)
 	}
-	err = licAlteonLb(req)
-	if err != nil {
-		log.Fatal("Error to license Alteon Lb", err)
-	}
+	// err = licAlteonLb(req)
+	// if err != nil {
+	// 	log.Fatal("Error to license Alteon Lb", err)
+	// }
 
 	return res, err
 }
 
 func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanceRequest) (*lbservice.DestroyInstanceResponse, error) {
-	//log.Printf("DestroyService function was invoked with %v\n", req)
+	log.Printf("DestroyService function was invoked with %v\n", req)
 	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/destroy_service.vm/run"
 	type DestroyConfigReq struct {
 		DryRun bool `json:"__dryRun"`
@@ -421,9 +481,21 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 	if req.GetTestOnly() {
 		return res, nil
 	}
-	r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/json")
 
-	_, err = serverSend(r)
+	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	count := 0
+	for c != true && count < MAX_COUNT {
+		time.Sleep(2 * time.Second)
+		c, uri = readResponce(requestBody, uri, "GET", "")
+		count++
+	}
+	if count == MAX_COUNT {
+		err = fmt.Errorf("Timed out Destroying service")
+		res = &lbservice.DestroyInstanceResponse{
+			DestroyInstanceResp: false,
+		}
+	}
+
 	if err != nil {
 		log.Fatal("Error in Destroying service", err)
 	}
@@ -432,23 +504,31 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 }
 
 func (*server) ConfigL3InterfacesService(ctx context.Context, req *lbservice.CfgL3InterfacesRequest) (*lbservice.CfgL3InterfacesResponse, error) {
-	//log.Printf("ConfigL3InterfacesService function was invoked with %v\n", req)
+	log.Printf("ConfigL3InterfacesService function was invoked with %v\n", req)
 	err := configL3Network(req)
-	if err != nil {
-		log.Fatal("Error configure L3 network", err)
-	}
 	res := &lbservice.CfgL3InterfacesResponse{
 		CfgL3InterfacesResp: true,
+	}
+	if err != nil {
+		log.Fatal("Error configure L3 network", err)
+		res := &lbservice.CfgL3InterfacesResponse{
+			CfgL3InterfacesResp: false,
+		}
+
+		return res, err
 	}
 
 	return res, err
 }
 
 func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4FilterRequest) (*lbservice.CfgL4FilterResponse, error) {
-	//log.Printf("ConfigL4FilterService function was invoked with %v\n", req)
+	log.Printf("ConfigL4FilterService function was invoked with %v\n", req)
 	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/setup_l4_filter.vm/run"
 	rules := req.GetFilt()
 	var err error = nil
+	res := &lbservice.CfgL4FilterResponse{
+		CfgL4FilterResp: false,
+	}
 
 	type FiltConfigReq struct {
 		DryRun bool `json:"__dryRun"`
@@ -516,15 +596,20 @@ func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4Fi
 			continue
 		}
 
-		r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/json")
-
-		_, err = serverSend(r)
-		if err != nil {
-			log.Fatal("Error configure ep failed", err)
+		c, uri := readResponce(requestBody, url, "POST", "application/json")
+		count := 0
+		for c != true && count < MAX_COUNT {
+			time.Sleep(2 * time.Second)
+			c, uri = readResponce(requestBody, uri, "GET", "")
+			count++
+		}
+		if count == MAX_COUNT {
+			err = fmt.Errorf("Timed out Configuring L4 filters")
+			return res, err
 		}
 	}
 
-	res := &lbservice.CfgL4FilterResponse{
+	res = &lbservice.CfgL4FilterResponse{
 		CfgL4FilterResp: true,
 	}
 
@@ -532,10 +617,12 @@ func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4Fi
 }
 
 func (*server) ProvisionEndPointService(ctx context.Context, req *lbservice.ProvisionEndPointRequest) (*lbservice.ProvisionEndPointResponse, error) {
-	// log.Printf("ProvisionEndPointService function was invoked with %v\n", req)
+	log.Printf("ProvisionEndPointService function was invoked with %v\n", req)
 	var err error = nil
 	url := ""
-
+	res := &lbservice.ProvisionEndPointResponse{
+		ProvisionEndPointResp: false,
+	}
 	type EpConfigReq struct {
 		DryRun bool `json:"__dryRun"`
 		Alteon struct {
@@ -575,58 +662,27 @@ func (*server) ProvisionEndPointService(ctx context.Context, req *lbservice.Prov
 		if req.GetTestOnly() {
 			continue
 		}
-
-		r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/json")
-
-		_, err = serverSend(r)
-		if err != nil {
-			log.Fatal("Error configure ep failed", err)
+		c, uri := readResponce(requestBody, url, "POST", "application/json")
+		count := 0
+		for c != true && count < MAX_COUNT {
+			time.Sleep(2 * time.Second)
+			c, uri = readResponce(requestBody, uri, "GET", "")
+			count++
+		}
+		if count == MAX_COUNT {
+			err = fmt.Errorf("Timed out programming endpoints")
+			return res, err
 		}
 	}
 
-	res := &lbservice.ProvisionEndPointResponse{
+	res = &lbservice.ProvisionEndPointResponse{
 		ProvisionEndPointResp: true,
 	}
 	return res, err
 }
 
-func readResponce(req []byte, url string, op string, content string) (complete bool, uri string) {
-	var s queryApiShortRsp
-	r, err := serverPrepareHttphdr(req, url, op, content)
-
-	res, err := serverSend(r)
-	if err != nil {
-		log.Fatal("Error in Destroying service", err)
-	}
-
-	err = json.Unmarshal(res, &s)
-	if err != nil {
-		log.Println("Json Unmarshall failed :", err)
-	}
-	//log.Printf("short queryapi response %+v", s)
-
-	return s.Complete, s.URI
-}
-
-func readFullResponce(req []byte, url string) (s queryApiRsp, err error) {
-	r, err := serverPrepareHttphdr(req, url, "GET", "")
-
-	res, err := serverSend(r)
-	if err != nil {
-		log.Fatal("Error in Destroying service", err)
-	}
-
-	err = json.Unmarshal(res, &s)
-	if err != nil {
-		log.Println("Json Unmarshall failed :", err)
-	}
-	//log.Printf("full queryapi response %+v", s)
-
-	return s, err
-}
-
 func (*server) QueryInstanceService(ctx context.Context, req *lbservice.QueryInstanceRequest) (*lbservice.QueryInstanceResponse, error) {
-	// log.Printf("QueryInstanceService function was invoked with %v\n", req)
+	log.Printf("QueryInstanceService function was invoked with %v\n", req)
 	var err error = nil
 
 	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/read_reals.vm/run"
