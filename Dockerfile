@@ -3,9 +3,8 @@ ARG AUSER
 ARG AKEY
 ENV creds=$AUSER:$AKEY
 WORKDIR /workspace
-
-ADD https://github.com/msherif1234/loadbalancers-api/releases/download/1.0/vdirect-server-install-deb-4-12-0-1.deb /workspace/
-ADD https://github.com/msherif1234/loadbalancers-api/releases/download/1.0/license-server-2-3-0-1.tgz  /workspace/
+ADD https://github.com/loadbalancer-api/apis/releases/download/1.0/vdirect-server-install-deb-4-12-0-1.deb /workspace/
+ADD https://github.com/loadbalancer-api/apis/releases/download/1.0/license-server-2-3-0-1.tgz  /workspace/
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/* && apt-get update \
     && apt-get install -y --no-install-recommends \
