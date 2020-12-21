@@ -7,7 +7,7 @@ metadata:
 spec:
   containers:
   - name: lb-server
-    image: dockerhub.cisco.com/asac-dev-docker/lbserver:v1.2
+    image: msherif4/loadbalancer-apis::v1.0
     imagePullPolicy: Always
     ports:
     - containerPort: 8080
