@@ -22,22 +22,22 @@ import (
 )
 
 const (
-	vdirectBaseUrl       = "https://0.0.0.0:2189/api/"
+	vdirectBaseURL       = "https://0.0.0.0:2189/api/"
 	vdirectUserName      = "root"
 	vdirectPassword      = "C!sc0123"
-	alteonSshPort        = 22
+	alteonSSHPort        = 22
 	alteonConfigProtocol = "HTTPS"
-	MAX_COUNT            = 10
+	macCount             = 10
 )
 
 var grpcLog glog.LoggerV2
 
-type queryApiShortRsp struct {
+type queryAPIShortRsp struct {
 	URI       string `json:"uri"`
 	TargetURI string `json:"targetUri"`
 	Complete  bool   `json:"complete"`
 }
-type queryApiRsp struct {
+type queryAPIRsp struct {
 	URI        string `json:"uri"`
 	TargetURI  string `json:"targetUri"`
 	Complete   bool   `json:"complete"`
@@ -102,7 +102,7 @@ func serverPrepareHttphdr(req []byte, url string, op string, content string) (r 
 }
 
 func readResponce(req []byte, url string, op string, content string) (complete bool, uri string) {
-	var s queryApiShortRsp
+	var s queryAPIShortRsp
 	r, err := serverPrepareHttphdr(req, url, op, content)
 
 	res, err := serverSend(r)
@@ -119,7 +119,7 @@ func readResponce(req []byte, url string, op string, content string) (complete b
 	return s.Complete, s.URI
 }
 
-func readFullResponce(req []byte, url string) (s queryApiRsp, err error) {
+func readFullResponce(req []byte, url string) (s queryAPIRsp, err error) {
 	r, err := serverPrepareHttphdr(req, url, "GET", "")
 
 	res, err := serverSend(r)
@@ -138,7 +138,7 @@ func readFullResponce(req []byte, url string) (s queryApiRsp, err error) {
 
 func addAdcToVdirect(req *lbservice.CreateInstanceRequest) (id string, err error) {
 	instance := req.GetInstance()
-	url := vdirectBaseUrl + "container/"
+	url := vdirectBaseURL + "container/"
 
 	type Config struct {
 		Name          string        `json:"name"`
@@ -200,7 +200,7 @@ func addAdcToVdirect(req *lbservice.CreateInstanceRequest) (id string, err error
 	config.Configuration.CliUser = instance.GetLbUserName()
 	config.Configuration.CliPassword = instance.GetLbPassword()
 	config.Configuration.CliSSH = true
-	config.Configuration.CliPort = alteonSshPort
+	config.Configuration.CliPort = alteonSSHPort
 	config.Configuration.HTTPSPort = instance.GetLbHttpsPort()
 	config.Configuration.HTTPSUser = instance.GetLbUserName()
 	config.Configuration.HTTPSPassword = instance.GetLbPassword()
@@ -222,7 +222,7 @@ func addAdcToVdirect(req *lbservice.CreateInstanceRequest) (id string, err error
 }
 
 func uploadConfigTemplate(template string, templateName string) error {
-	url := vdirectBaseUrl + "template?failIfInvalid=true&name=" + templateName
+	url := vdirectBaseURL + "template?failIfInvalid=true&name=" + templateName
 
 	vmFile, err := os.Open(template)
 	if err != nil {
@@ -243,7 +243,7 @@ func uploadConfigTemplate(template string, templateName string) error {
 
 func createAlteonLb(req *lbservice.CreateInstanceRequest) error {
 	instance := req.GetInstance()
-	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/create_lb.vm/run"
+	url := vdirectBaseURL + "runnable/ConfigurationTemplate/create_lb.vm/run"
 	type CreateLbReq struct {
 		DryRun bool `json:"__dryRun"`
 		Alteon struct {
@@ -274,12 +274,12 @@ func createAlteonLb(req *lbservice.CreateInstanceRequest) error {
 
 	c, uri := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < MAX_COUNT {
+	for c != true && count < macCount {
 		time.Sleep(2 * time.Second)
 		c, uri = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
-	if count == MAX_COUNT {
+	if count == macCount {
 		err = fmt.Errorf("Timed out creating Loadbalancer instance %s", instance.GetLabel())
 	}
 
@@ -288,16 +288,16 @@ func createAlteonLb(req *lbservice.CreateInstanceRequest) error {
 
 func licAlteonLb(req *lbservice.CreateInstanceRequest) error {
 	instance := req.GetInstance()
-	url := vdirectBaseUrl + "runnable/Plugin/license/allocateAlteonLicense"
+	url := vdirectBaseURL + "runnable/Plugin/license/allocateAlteonLicense"
 	type LicLbReq struct {
-		MgmtIp      string `json:"alteon"`
+		MgmtIP      string `json:"alteon"`
 		Entitlement string `json:"entitlement"`
 		Throughput  int32  `json:"throughput"`
 		AddOn       bool   `json:"add-on"`
 	}
 
 	config := LicLbReq{}
-	config.MgmtIp = instance.GetMgmtIpAddr()
+	config.MgmtIP = instance.GetMgmtIpAddr()
 	config.Entitlement = instance.GetLicToken()
 	config.Throughput = instance.GetLic()
 	config.AddOn = false
@@ -308,12 +308,12 @@ func licAlteonLb(req *lbservice.CreateInstanceRequest) error {
 
 	c, uri := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < MAX_COUNT {
+	for c != true && count < macCount {
 		time.Sleep(2 * time.Second)
 		c, uri = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
-	if count == MAX_COUNT {
+	if count == macCount {
 		err = fmt.Errorf("Timed out configuring lb license")
 	}
 
@@ -322,7 +322,7 @@ func licAlteonLb(req *lbservice.CreateInstanceRequest) error {
 
 func configL3Network(req *lbservice.CfgL3InterfacesRequest) error {
 	var err error = nil
-	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/setup_l3.vm/run"
+	url := vdirectBaseURL + "runnable/ConfigurationTemplate/setup_l3.vm/run"
 
 	type ConfigL3NetworkReq struct {
 		DryRun bool `json:"__dryRun"`
@@ -380,12 +380,12 @@ func configL3Network(req *lbservice.CfgL3InterfacesRequest) error {
 		}
 		c, uri := readResponce(requestBody, url, "POST", "application/json")
 		count := 0
-		for c != true && count < MAX_COUNT {
+		for c != true && count < macCount {
 			time.Sleep(2 * time.Second)
 			c, uri = readResponce(requestBody, uri, "GET", "")
 			count++
 		}
-		if count == MAX_COUNT {
+		if count == macCount {
 			err = fmt.Errorf("Timed out Configuring L3 interfaces")
 		}
 	}
@@ -454,7 +454,7 @@ func (*server) CreateService(ctx context.Context, req *lbservice.CreateInstanceR
 
 func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanceRequest) (*lbservice.DestroyInstanceResponse, error) {
 	log.Printf("DestroyService function was invoked with %v\n", req)
-	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/destroy_service.vm/run"
+	url := vdirectBaseURL + "runnable/ConfigurationTemplate/destroy_service.vm/run"
 	type DestroyConfigReq struct {
 		DryRun bool `json:"__dryRun"`
 		Alteon struct {
@@ -484,12 +484,12 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 
 	c, uri := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < MAX_COUNT {
+	for c != true && count < macCount {
 		time.Sleep(2 * time.Second)
 		c, uri = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
-	if count == MAX_COUNT {
+	if count == macCount {
 		err = fmt.Errorf("Timed out Destroying service")
 		res = &lbservice.DestroyInstanceResponse{
 			DestroyInstanceResp: false,
@@ -523,7 +523,7 @@ func (*server) ConfigL3InterfacesService(ctx context.Context, req *lbservice.Cfg
 
 func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4FilterRequest) (*lbservice.CfgL4FilterResponse, error) {
 	log.Printf("ConfigL4FilterService function was invoked with %v\n", req)
-	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/setup_l4_filter.vm/run"
+	url := vdirectBaseURL + "runnable/ConfigurationTemplate/setup_l4_filter.vm/run"
 	rules := req.GetFilt()
 	var err error = nil
 	res := &lbservice.CfgL4FilterResponse{
@@ -538,7 +538,7 @@ func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4Fi
 		} `json:"alteon"`
 		L4Filter struct {
 			FilterName      string `json:"name"`
-			FilterId        int32  `json:"id"`
+			FilterID        int32  `json:"id"`
 			Action          string `json:"action"`
 			IPVersion       string `json:"ip_version"`
 			SrcIP           string `json:"src_ip_address"`
@@ -561,7 +561,7 @@ func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4Fi
 		config.Alteon.Type = "Container"
 		config.Alteon.Name = cfg.GetLabel()
 		config.L4Filter.FilterName = cfg.GetName()
-		config.L4Filter.FilterId = cfg.GetRuleId()
+		config.L4Filter.FilterID = cfg.GetRuleId()
 		config.L4Filter.Action = cfg.GetAct()
 		if cfg.GetLbIsV4() {
 			config.L4Filter.IPVersion = "v4"
@@ -598,12 +598,12 @@ func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4Fi
 
 		c, uri := readResponce(requestBody, url, "POST", "application/json")
 		count := 0
-		for c != true && count < MAX_COUNT {
+		for c != true && count < macCount {
 			time.Sleep(2 * time.Second)
 			c, uri = readResponce(requestBody, uri, "GET", "")
 			count++
 		}
-		if count == MAX_COUNT {
+		if count == macCount {
 			err = fmt.Errorf("Timed out Configuring L4 filters")
 			return res, err
 		}
@@ -640,10 +640,10 @@ func (*server) ProvisionEndPointService(ctx context.Context, req *lbservice.Prov
 		op := epcfg.GetOp()
 		if op == int32(lbservice.EndPointCfg_ADD) {
 			// log.Println("Create ASAc EP", epcfg.GetIpAddress())
-			url = vdirectBaseUrl + "runnable/ConfigurationTemplate/add_reals.vm/run"
+			url = vdirectBaseURL + "runnable/ConfigurationTemplate/add_reals.vm/run"
 		} else {
 			// log.Println("Delete ASAc EP", epcfg.GetIpAddress())
-			url = vdirectBaseUrl + "runnable/ConfigurationTemplate/delete_reals.vm/run"
+			url = vdirectBaseURL + "runnable/ConfigurationTemplate/delete_reals.vm/run"
 		}
 
 		config := EpConfigReq{}
@@ -664,12 +664,12 @@ func (*server) ProvisionEndPointService(ctx context.Context, req *lbservice.Prov
 		}
 		c, uri := readResponce(requestBody, url, "POST", "application/json")
 		count := 0
-		for c != true && count < MAX_COUNT {
+		for c != true && count < macCount {
 			time.Sleep(2 * time.Second)
 			c, uri = readResponce(requestBody, uri, "GET", "")
 			count++
 		}
-		if count == MAX_COUNT {
+		if count == macCount {
 			err = fmt.Errorf("Timed out programming endpoints")
 			return res, err
 		}
@@ -685,7 +685,7 @@ func (*server) QueryInstanceService(ctx context.Context, req *lbservice.QueryIns
 	log.Printf("QueryInstanceService function was invoked with %v\n", req)
 	var err error = nil
 
-	url := vdirectBaseUrl + "runnable/ConfigurationTemplate/read_reals.vm/run"
+	url := vdirectBaseURL + "runnable/ConfigurationTemplate/read_reals.vm/run"
 	type QueryReq struct {
 		DryRun bool `json:"__dryRun"`
 		Alteon struct {
@@ -721,13 +721,13 @@ func (*server) QueryInstanceService(ctx context.Context, req *lbservice.QueryIns
 	}
 	c, uri := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < MAX_COUNT {
+	for c != true && count < macCount {
 		time.Sleep(2 * time.Second)
 		c, uri = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
 
-	if count == MAX_COUNT {
+	if count == macCount {
 		log.Fatal("Timed out while waiting for query response")
 	}
 
