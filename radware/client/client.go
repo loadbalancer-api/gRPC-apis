@@ -427,9 +427,10 @@ func singleLb(conn *grpc.ClientConn) {
 		log.Fatalf("error adding provisioning Endpoints for  %+v", eps)
 	}
 
-	//destroy all rsources created in Alteon
-	//destroyInstance(c, "Inside", "Vdirect-ASAc-Group")
 	QueryInstance(c, "Inside")
+
+	//destroy all rsources created in Alteon
+	destroyInstance(c, "Inside", "Vdirect-ASAc-Group")
 }
 
 func main() {
