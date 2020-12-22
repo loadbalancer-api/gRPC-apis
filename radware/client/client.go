@@ -83,7 +83,7 @@ func sandwichLbOutside(wg *sync.WaitGroup, conn *grpc.ClientConn) {
 		},
 	}
 
-	if ConfigL3Interfaces(c, interfaces) != true {
+	if configL3Interfaces(c, interfaces) != true {
 		log.Fatalf("error configuring l3 interfaces for %v", lb)
 	}
 
@@ -129,7 +129,7 @@ func sandwichLbOutside(wg *sync.WaitGroup, conn *grpc.ClientConn) {
 		},
 	}
 
-	if ConfigL4Filters(c, rules) != true {
+	if configL4Filters(c, rules) != true {
 		log.Fatalf("error configuring l4 filter rule for %v", lb)
 	}
 
@@ -164,7 +164,7 @@ func sandwichLbOutside(wg *sync.WaitGroup, conn *grpc.ClientConn) {
 				},*/
 	}
 
-	if ProvisionEndPoints(c, eps) != true {
+	if provisionEndPoints(c, eps) != true {
 		log.Fatalf("error adding provisioning Endpoints for  %+v", eps)
 	}
 
@@ -222,7 +222,7 @@ func sandwichLbInside(wg *sync.WaitGroup, conn *grpc.ClientConn) {
 		},
 	}
 
-	if ConfigL3Interfaces(c, interfaces) != true {
+	if configL3Interfaces(c, interfaces) != true {
 		log.Fatalf("error configuring l3 interfaces for %v", lb)
 	}
 
@@ -268,7 +268,7 @@ func sandwichLbInside(wg *sync.WaitGroup, conn *grpc.ClientConn) {
 		},
 	}
 
-	if ConfigL4Filters(c, rules) != true {
+	if configL4Filters(c, rules) != true {
 		log.Fatalf("error configuring l4 filter rule for %v", lb)
 	}
 
@@ -303,7 +303,7 @@ func sandwichLbInside(wg *sync.WaitGroup, conn *grpc.ClientConn) {
 				},*/
 	}
 
-	if ProvisionEndPoints(c, eps) != true {
+	if provisionEndPoints(c, eps) != true {
 		log.Fatalf("error adding provisioning Endpoints for  %+v", eps)
 	}
 
@@ -344,7 +344,7 @@ func singleLb(conn *grpc.ClientConn) {
 		},
 	}
 
-	if ConfigL3Interfaces(c, interfaces) != true {
+	if configL3Interfaces(c, interfaces) != true {
 		log.Fatalf("error configuring l3 interfaces for %v", lb1)
 	}
 
@@ -389,7 +389,7 @@ func singleLb(conn *grpc.ClientConn) {
 		},
 	}
 
-	if ConfigL4Filters(c, rules) != true {
+	if configL4Filters(c, rules) != true {
 		log.Fatalf("error configuring l4 filter rule for %v", lb1)
 	}
 
@@ -423,11 +423,11 @@ func singleLb(conn *grpc.ClientConn) {
 		},
 	}
 
-	if ProvisionEndPoints(c, eps) != true {
+	if provisionEndPoints(c, eps) != true {
 		log.Fatalf("error adding provisioning Endpoints for  %+v", eps)
 	}
 
-	QueryInstance(c, "Inside")
+	queryInstance(c, "Inside")
 
 	//destroy all rsources created in Alteon
 	destroyInstance(c, "Inside", "Vdirect-ASAc-Group")
@@ -461,7 +461,7 @@ func createInstance(c lbservice.LoadBalancerServiceClient,
 	lbpassword string,
 	lbhttpsport int32,
 	lbhealth string, lbmetric string, lbdsr bool,
-	lbgroupname string, lbservicename string, lbl4port int32) (Id *lbservice.InstanceId) {
+	lbgroupname string, lbservicename string, lbl4port int32) (ID *lbservice.InstanceId) {
 	log.Printf("Starting LibcreateInstance gRPC")
 
 	req := &lbservice.CreateInstanceRequest{
@@ -494,7 +494,7 @@ func createInstance(c lbservice.LoadBalancerServiceClient,
 	return res.GetId()
 }
 
-func ConfigL3Interfaces(c lbservice.LoadBalancerServiceClient,
+func configL3Interfaces(c lbservice.LoadBalancerServiceClient,
 	interfaces []*lbservice.L3Interface) (resp bool) {
 
 	log.Printf("Starting Config L3 Interfaces for %+v", interfaces)
@@ -511,7 +511,7 @@ func ConfigL3Interfaces(c lbservice.LoadBalancerServiceClient,
 	return res.GetCfgL3InterfacesResp()
 }
 
-func ConfigL4Filters(c lbservice.LoadBalancerServiceClient,
+func configL4Filters(c lbservice.LoadBalancerServiceClient,
 	rules []*lbservice.L4Filter) (resp bool) {
 	log.Printf("Starting Config L4filter rule for %+v", rules)
 
@@ -528,7 +528,7 @@ func ConfigL4Filters(c lbservice.LoadBalancerServiceClient,
 	return res.GetCfgL4FilterResp()
 }
 
-func ProvisionEndPoints(c lbservice.LoadBalancerServiceClient,
+func provisionEndPoints(c lbservice.LoadBalancerServiceClient,
 	eps []*lbservice.EndPointCfg) (resp bool) {
 
 	log.Printf("Starting ProvisionEndPoint gRPC for %+v", eps)
@@ -563,7 +563,7 @@ func destroyInstance(c lbservice.LoadBalancerServiceClient,
 	return res.GetDestroyInstanceResp()
 }
 
-func QueryInstance(c lbservice.LoadBalancerServiceClient,
+func queryInstance(c lbservice.LoadBalancerServiceClient,
 	label string) (resp []*lbservice.EndPointInstance) {
 	log.Printf("Starting QueryInstance gRPC for %v", label)
 
