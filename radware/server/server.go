@@ -124,7 +124,7 @@ func readFullResponce(req []byte, url string) (s queryAPIRsp, err error) {
 
 	res, err := serverSend(r)
 	if err != nil {
-		log.Fatal("Error in Destroying service", err)
+		log.Fatal("Error during readfull response", err)
 	}
 
 	err = json.Unmarshal(res, &s)
@@ -495,6 +495,10 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 			DestroyInstanceResp: false,
 		}
 	}
+
+	// Destroy ADC container
+	r, err := serverPrepareHttphdr([]byte(""), vdirectBaseURL+"container/"+config.Alteon.Name, "DELETE", "")
+	_, err = serverSend(r)
 
 	if err != nil {
 		log.Fatal("Error in Destroying service", err)
