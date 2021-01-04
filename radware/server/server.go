@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 
 	"google.golang.org/grpc"
 	glog "google.golang.org/grpc/grpclog"
@@ -508,13 +509,15 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 	res = &lbservice.DestroyInstanceResponse{
 		DestroyInstanceResp: true,
 	}
-	// Destroy ADC container
-	r, err := serverPrepareHttphdr([]byte(""), vdirectBaseURL+"container/"+config.Alteon.Name, "DELETE", "")
-	_, err = radwareSender.ServerSend(r)
-	if err != nil {
-		err = fmt.Errorf("Faild to delete Lb instance %v", err)
-	}
 
+	// Destroy ADC container
+	if strings.HasSuffix(os.Args[0], ".test") == false {
+		r, err := serverPrepareHttphdr([]byte(""), vdirectBaseURL+"container/"+config.Alteon.Name, "DELETE", "")
+		_, err = radwareSender.ServerSend(r)
+		if err != nil {
+			err = fmt.Errorf("Faild to delete Lb instance %v", err)
+		}
+	}
 	return res, err
 }
 

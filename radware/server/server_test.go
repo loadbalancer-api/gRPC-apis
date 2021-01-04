@@ -213,4 +213,33 @@ func TestProvisionEndPointService(t *testing.T) {
 	}
 }
 
+func TestDestroyService(t *testing.T) {
+	ctx := context.Background()
 
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
+	}
+
+	defer conn.Close()
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	radwareSender := mocks.NewMockSender(mockCtrl)
+	SetSender(radwareSender)
+	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil)
+	client := lbservice.NewLoadBalancerServiceClient(conn)
+	req := &lbservice.DestroyInstanceRequest{
+		Label:         "Inside",
+		LbServiceName: "svc1",
+	}
+
+	res, err := client.DestroyService(ctx, req)
+	if err != nil {
+		t.Fatalf("error while calling destroyInstance RPC: %v", err)
+	}
+
+	if res.GetDestroyInstanceResp() != true {
+		t.Fatalf("Destory service test failed")
+	}
+}
