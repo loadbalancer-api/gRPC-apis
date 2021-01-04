@@ -68,23 +68,31 @@ func init() {
 	grpcLog = glog.NewLoggerV2(os.Stdout, os.Stdout, os.Stdout)
 }
 
-func serverSend(r *http.Request) ([]byte, error) {
+//go:generate mockgen -source server.go -destination=../mocks/mock_sender.go --package=mocks Sender
 
+type Sender interface {
+	ServerSend(*http.Request) ([]byte, error)
+}
+
+var radwareSender Sender
+
+type user struct{}
+
+func (u user) ServerSend(r *http.Request) ([]byte, error) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	client := &http.Client{Transport: customTransport}
 
 	resp, err := client.Do(r)
-	if err != nil {
-		log.Fatal("Error:  ", err)
-	}
 	defer resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Error reading body. ", err)
+		err = fmt.Errorf("Error reading body %v. ", err)
 	}
-	//log.Println("serverSend ", string(body))
 	return body, err
 }
 
@@ -95,43 +103,51 @@ func serverPrepareHttphdr(req []byte, url string, op string, content string) (r 
 		r.Header.Set("Content-Type", content)
 	}
 	if err != nil {
-		log.Fatal("Error create new Http request", err)
+		err = fmt.Errorf("Error create new Http request %v", err)
 	}
 	return r, err
 
 }
 
-func readResponce(req []byte, url string, op string, content string) (complete bool, uri string) {
+func readResponce(req []byte, url string, op string, content string) (complete bool, uri string, err error) {
 	var s queryAPIShortRsp
 	r, err := serverPrepareHttphdr(req, url, op, content)
-
-	res, err := serverSend(r)
 	if err != nil {
-		log.Fatal("Error sending to vdirect server", err)
+		err = fmt.Errorf("Error preparing HTTP header %v", err)
+		return false, "", err
+	}
+
+	res, err := radwareSender.ServerSend(r)
+	if err != nil {
+		err = fmt.Errorf("Error sending to vdirect server %v", err)
+		return false, "", err
 	}
 
 	err = json.Unmarshal(res, &s)
 	if err != nil {
-		log.Fatal("Json Unmarshall failed :", err)
+		err = fmt.Errorf("Json Unmarshall failed : %v", err)
 	}
-	//log.Printf("short queryapi response %+v", s)
 
-	return s.Complete, s.URI
+	return s.Complete, s.URI, err
 }
 
 func readFullResponce(req []byte, url string) (s queryAPIRsp, err error) {
 	r, err := serverPrepareHttphdr(req, url, "GET", "")
-
-	res, err := serverSend(r)
 	if err != nil {
-		log.Fatal("Error during readfull response", err)
+		err = fmt.Errorf("Error server prepare HTTP header %v", err)
+		return s, err
+	}
+
+	res, err := radwareSender.ServerSend(r)
+	if err != nil {
+		err = fmt.Errorf("Error during readfull response %v", err)
+		return s, err
 	}
 
 	err = json.Unmarshal(res, &s)
 	if err != nil {
-		log.Println("Json Unmarshall failed :", err)
+		err = fmt.Errorf("Json Unmarshall failed: %v", err)
 	}
-	//log.Printf("full queryapi response %+v", s)
 
 	return s, err
 }
@@ -207,15 +223,11 @@ func addAdcToVdirect(req *lbservice.CreateInstanceRequest) (id string, err error
 
 	requestBody, err := json.Marshal(config)
 	if err != nil {
-		log.Fatalln(err)
-	}
-
-	if req.GetTestOnly() {
-		return "inside", nil
+		return "", err
 	}
 
 	r, err := serverPrepareHttphdr(requestBody, url, "POST", "application/vnd.com.radware.vdirect.container+json")
-	body, err := serverSend(r)
+	body, err := radwareSender.ServerSend(r)
 	var data Response
 	json.Unmarshal(body, &data)
 	return data.ID.ID, err
@@ -225,8 +237,9 @@ func uploadConfigTemplate(template string, templateName string) error {
 	url := vdirectBaseURL + "template?failIfInvalid=true&name=" + templateName
 
 	vmFile, err := os.Open(template)
+	defer vmFile.Close()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	fileInfo, _ := vmFile.Stat()
 	var size int64 = fileInfo.Size()
@@ -236,8 +249,7 @@ func uploadConfigTemplate(template string, templateName string) error {
 	buffer := bufio.NewReader(vmFile)
 	_, err = buffer.Read(bytes)
 	r, err := serverPrepareHttphdr(bytes, url, "POST", "text/x-velocity")
-	defer vmFile.Close()
-	_, err = serverSend(r)
+	_, err = radwareSender.ServerSend(r)
 	return err
 }
 
@@ -269,14 +281,15 @@ func createAlteonLb(req *lbservice.CreateInstanceRequest) error {
 
 	requestBody, err := json.Marshal(config)
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
-	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < macCount {
+
+	for c != true && count < macCount && err == nil {
 		time.Sleep(2 * time.Second)
-		c, uri = readResponce(requestBody, uri, "GET", "")
+		c, uri, err = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
 	if count == macCount {
@@ -303,14 +316,14 @@ func licAlteonLb(req *lbservice.CreateInstanceRequest) error {
 	config.AddOn = false
 	requestBody, err := json.Marshal(config)
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
 
-	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < macCount {
+	for c != true && count < macCount && err == nil {
 		time.Sleep(2 * time.Second)
-		c, uri = readResponce(requestBody, uri, "GET", "")
+		c, uri, err = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
 	if count == macCount {
@@ -347,7 +360,6 @@ func configL3Network(req *lbservice.CfgL3InterfacesRequest) error {
 		HaEnabled    bool   `json:"ha_enabled"`
 	}
 	for _, instance := range req.GetInterfaces() {
-		// log.Printf("Configure L3interface %+v", instance)
 		config := ConfigL3NetworkReq{}
 		config.DryRun = false
 		config.Alteon.Type = "Container"
@@ -372,17 +384,14 @@ func configL3Network(req *lbservice.CfgL3InterfacesRequest) error {
 
 		requestBody, err := json.Marshal(config)
 		if err != nil {
-			log.Fatalln(err)
+			return err
 		}
 
-		if req.GetTestOnly() {
-			continue
-		}
-		c, uri := readResponce(requestBody, url, "POST", "application/json")
+		c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 		count := 0
-		for c != true && count < macCount {
+		for c != true && count < macCount && err == nil {
 			time.Sleep(2 * time.Second)
-			c, uri = readResponce(requestBody, uri, "GET", "")
+			c, uri, err = readResponce(requestBody, uri, "GET", "")
 			count++
 		}
 		if count == macCount {
@@ -397,56 +406,62 @@ func (*server) CreateService(ctx context.Context, req *lbservice.CreateInstanceR
 	log.Printf("CreateService function was invoked with %v\n", req)
 
 	lbID, err := addAdcToVdirect(req)
-	if err != nil {
-		log.Fatal("Error adding LB to vdirect", err)
-	}
-
 	res := &lbservice.CreateInstanceResponse{
 		Id: &lbservice.InstanceId{
 			InstanceId: lbID,
 		},
 	}
-
-	if req.GetTestOnly() {
-		return res, nil
+	if err != nil {
+		err = fmt.Errorf("Error adding LB to vdirect %v", err)
+		return res, err
 	}
+
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/create_lb.vm", "create_lb.vm")
 	if err != nil {
-		log.Fatal("Error upload create lb configuration", err)
+		err = fmt.Errorf("Error upload create lb configuration %v", err)
+		return res, err
 	}
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/add_reals.vm", "add_reals.vm")
 	if err != nil {
-		log.Fatal("Error upload add real server configuration", err)
+		err = fmt.Errorf("Error upload add real server configuration %v", err)
+		return res, err
 	}
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/read_reals.vm", "read_reals.vm")
 	if err != nil {
-		log.Fatal("Error upload read real server configuration", err)
+		err = fmt.Errorf("Error upload read real server configuration %v", err)
+		return res, err
 	}
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/delete_reals.vm", "delete_reals.vm")
 	if err != nil {
-		log.Fatal("Error upload delete real server configuration", err)
+		err = fmt.Errorf("Error upload delete real server configuration %v", err)
+		return res, err
 	}
 
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/setup_l3.vm", "setup_l3.vm")
 	if err != nil {
-		log.Fatal("Error upload l3 setup configuration", err)
+		err = fmt.Errorf("Error upload l3 setup configuration %v", err)
+		return res, err
 	}
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/destroy_service.vm", "destroy_service.vm")
 	if err != nil {
-		log.Fatal("Error upload destroy service ", err)
+		err = fmt.Errorf("Error upload destroy service %v", err)
+		return res, err
 	}
 	err = uploadConfigTemplate("/workspace/radware/workflow_templates/setup_l4_filter.vm", "setup_l4_filter.vm")
 	if err != nil {
-		log.Fatal("Error upload L4 filter service ", err)
+		err = fmt.Errorf("Error upload L4 filter service %v", err)
+		return res, err
 	}
 
 	err = createAlteonLb(req)
 	if err != nil {
-		log.Fatal("Error create Alteon Lb", err)
+		err = fmt.Errorf("Error create Alteon Lb %v", err)
+		return res, err
 	}
 	// err = licAlteonLb(req)
 	// if err != nil {
-	// 	log.Fatal("Error to license Alteon Lb", err)
+	// 	err = fmt.Errorf("Error to license Alteon Lb %v", err)
+	//	return err
 	// }
 
 	return res, err
@@ -470,38 +485,34 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 	config.Alteon.Name = req.GetLabel()
 	config.ServiceName = req.GetLbServiceName()
 
+	res := &lbservice.DestroyInstanceResponse{
+		DestroyInstanceResp: false,
+	}
+
 	requestBody, err := json.Marshal(config)
 	if err != nil {
-		log.Fatalln(err)
-	}
-	res := &lbservice.DestroyInstanceResponse{
-		DestroyInstanceResp: true,
+		return res, err
 	}
 
-	if req.GetTestOnly() {
-		return res, nil
-	}
-
-	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < macCount {
+	for c != true && count < macCount && err == nil {
 		time.Sleep(2 * time.Second)
-		c, uri = readResponce(requestBody, uri, "GET", "")
+		c, uri, err = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
 	if count == macCount {
 		err = fmt.Errorf("Timed out Destroying service")
-		res = &lbservice.DestroyInstanceResponse{
-			DestroyInstanceResp: false,
-		}
+		return res, err
 	}
-
+	res = &lbservice.DestroyInstanceResponse{
+		DestroyInstanceResp: true,
+	}
 	// Destroy ADC container
 	r, err := serverPrepareHttphdr([]byte(""), vdirectBaseURL+"container/"+config.Alteon.Name, "DELETE", "")
-	_, err = serverSend(r)
-
+	_, err = radwareSender.ServerSend(r)
 	if err != nil {
-		log.Fatal("Error in Destroying service", err)
+		err = fmt.Errorf("Faild to delete Lb instance %v", err)
 	}
 
 	return res, err
@@ -514,7 +525,7 @@ func (*server) ConfigL3InterfacesService(ctx context.Context, req *lbservice.Cfg
 		CfgL3InterfacesResp: true,
 	}
 	if err != nil {
-		log.Fatal("Error configure L3 network", err)
+		err = fmt.Errorf("Error configure L3 network %v", err)
 		res := &lbservice.CfgL3InterfacesResponse{
 			CfgL3InterfacesResp: false,
 		}
@@ -593,18 +604,14 @@ func (*server) ConfigL4FilterService(ctx context.Context, req *lbservice.CfgL4Fi
 		config.L4Filter.Operation = cfg.GetOp()
 		requestBody, err := json.Marshal(config)
 		if err != nil {
-			log.Fatalln(err)
+			return res, err
 		}
 
-		if req.GetTestOnly() {
-			continue
-		}
-
-		c, uri := readResponce(requestBody, url, "POST", "application/json")
+		c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 		count := 0
-		for c != true && count < macCount {
+		for c != true && count < macCount && err == nil {
 			time.Sleep(2 * time.Second)
-			c, uri = readResponce(requestBody, uri, "GET", "")
+			c, uri, err = readResponce(requestBody, uri, "GET", "")
 			count++
 		}
 		if count == macCount {
@@ -643,10 +650,8 @@ func (*server) ProvisionEndPointService(ctx context.Context, req *lbservice.Prov
 	for _, epcfg := range epscfg {
 		op := epcfg.GetOp()
 		if op == int32(lbservice.EndPointCfg_ADD) {
-			// log.Println("Create ASAc EP", epcfg.GetIpAddress())
 			url = vdirectBaseURL + "runnable/ConfigurationTemplate/add_reals.vm/run"
 		} else {
-			// log.Println("Delete ASAc EP", epcfg.GetIpAddress())
 			url = vdirectBaseURL + "runnable/ConfigurationTemplate/delete_reals.vm/run"
 		}
 
@@ -660,17 +665,14 @@ func (*server) ProvisionEndPointService(ctx context.Context, req *lbservice.Prov
 
 		requestBody, err := json.Marshal(config)
 		if err != nil {
-			log.Fatalln(err)
+			return res, err
 		}
 
-		if req.GetTestOnly() {
-			continue
-		}
-		c, uri := readResponce(requestBody, url, "POST", "application/json")
+		c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 		count := 0
-		for c != true && count < macCount {
+		for c != true && count < macCount && err == nil {
 			time.Sleep(2 * time.Second)
-			c, uri = readResponce(requestBody, uri, "GET", "")
+			c, uri, err = readResponce(requestBody, uri, "GET", "")
 			count++
 		}
 		if count == macCount {
@@ -705,38 +707,27 @@ func (*server) QueryInstanceService(ctx context.Context, req *lbservice.QueryIns
 
 	requestBody, err := json.Marshal(config)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, err
 	}
 
-	if req.GetTestOnly() {
-		res := &lbservice.QueryInstanceResponse{
-			QueryInstance: []*lbservice.EndPointInstance{
-				{
-					IpAddress:        "1.1.1.1",
-					AsacInstanceName: "ASAc1",
-				},
-				{
-					IpAddress:        "2.2.2.2",
-					AsacInstanceName: "ASAc2",
-				},
-			},
-		}
-		return res, nil
-	}
-	c, uri := readResponce(requestBody, url, "POST", "application/json")
+	c, uri, err := readResponce(requestBody, url, "POST", "application/json")
 	count := 0
-	for c != true && count < macCount {
+	for c != true && count < macCount && err == nil {
 		time.Sleep(2 * time.Second)
-		c, uri = readResponce(requestBody, uri, "GET", "")
+		c, uri, err = readResponce(requestBody, uri, "GET", "")
 		count++
 	}
 
 	if count == macCount {
-		log.Fatal("Timed out while waiting for query response")
+		err = fmt.Errorf("Timed out while waiting for query response")
+		return nil, err
 	}
 
 	s, err := readFullResponce(requestBody, uri)
-
+	if err != nil {
+		err = fmt.Errorf("Failed to read query response %v", err)
+		return nil, err
+	}
 	var qresp *lbservice.QueryInstanceResponse = new(lbservice.QueryInstanceResponse)
 	var rspList *[]*lbservice.EndPointInstance = &qresp.QueryInstance
 
@@ -751,10 +742,16 @@ func (*server) QueryInstanceService(ctx context.Context, req *lbservice.QueryIns
 	return qresp, err
 }
 
+func SetSender(s Sender) {
+	radwareSender = s
+}
+
 func main() {
+	radwareSender = user{}
+
 	lis, err := net.Listen("tcp", ":8080")
 	if err != nil {
-		log.Fatalf("Failed to listen %v", err)
+		err = fmt.Errorf("Failed to listen %v", err)
 	}
 	s := grpc.NewServer()
 
@@ -763,6 +760,6 @@ func main() {
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("Failed to listen to server %v", err)
+		err = fmt.Errorf("Failed to listen to server %v", err)
 	}
 }

@@ -88,7 +88,6 @@ message InstanceId {
 
 message CreateInstanceRequest {
     Instance instance = 1;
-    bool test_only = 2;
 }
 
 message CreateInstanceResponse {
@@ -98,7 +97,6 @@ message CreateInstanceResponse {
 message DestroyInstanceRequest {
     string label = 1;
     string lb_service_name = 2;
-    bool test_only = 3;
 }
 
 message DestroyInstanceResponse {
@@ -120,7 +118,6 @@ message L3Interface {
 
 message CfgL3InterfacesRequest {
     repeated L3Interface interfaces = 1;
-    bool test_only = 2;
 }
 
 message CfgL3InterfacesResponse {
@@ -161,7 +158,6 @@ message L4Filter {
 
 message CfgL4FilterRequest {
     repeated L4Filter filt = 1;
-    bool test_only = 2;
 }
 
 message CfgL4FilterResponse {
@@ -184,7 +180,6 @@ message EndPointCfg {
 
 message ProvisionEndPointRequest {
     repeated EndPointCfg ep = 1;   
-    bool test_only = 2;
 }
 
 message ProvisionEndPointResponse {
@@ -198,7 +193,6 @@ message EndPointInstance {
 
 message QueryInstanceRequest {
     string label = 1;
-    bool test_only = 2;
 }
 
 message QueryInstanceResponse {
