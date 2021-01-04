@@ -33,6 +33,45 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 	return lis.Dial()
 }
 
+func TestCreateService(t *testing.T) {
+	ctx := context.Background()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
+	}
+
+	defer conn.Close()
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	radwareSender := mocks.NewMockSender(mockCtrl)
+	SetSender(radwareSender)
+	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
+
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil)
+	client := lbservice.NewLoadBalancerServiceClient(conn)
+	req := &lbservice.CreateInstanceRequest{
+		Instance: &lbservice.Instance{
+			MgmtMacAddr:   "aaa.bbb.ccc",
+			MgmtIpAddr:    "1.2.3.4",
+			Label:         "inside",
+			Lic:           lbservice.InstanceLicense_value["LB_10GIG_LIC"],
+			LicToken:      "abc",
+			Vip:           "10.1.1.1",
+			LbUserName:    "admin",
+			LbPassword:    "Cisco@123",
+			LbHttpsPort:   443,
+			LbHealth:      lbservice.InstanceLbhealthchk_name[int32(lbservice.Instance_icmp)],
+			LbMetric:      lbservice.InstanceLbmetric_name[int32(lbservice.Instance_roundrobin)],
+			LbDsr:         true,
+			LbGroupName:   "group1",
+			LbServiceName: "svc1",
+			LbL4Port:      5001,
+		},
+	}
+
+	client.CreateService(ctx, req)
+}
 
 func TestConfigL3InterfacesService(t *testing.T) {
 	ctx := context.Background()
