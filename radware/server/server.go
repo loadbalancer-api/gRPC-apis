@@ -68,7 +68,7 @@ func init() {
 	grpcLog = glog.NewLoggerV2(os.Stdout, os.Stdout, os.Stdout)
 }
 
-//go:generate mockgen -source server.go -destination=../mocks/mock_sender.go --package=mocks Sender
+//go:generate mockgen -source server.go -destination=./mocks/mock_sender.go --package=mocks Sender
 
 type Sender interface {
 	ServerSend(*http.Request) ([]byte, error)
@@ -508,13 +508,13 @@ func (*server) DestroyService(ctx context.Context, req *lbservice.DestroyInstanc
 	res = &lbservice.DestroyInstanceResponse{
 		DestroyInstanceResp: true,
 	}
+
 	// Destroy ADC container
 	r, err := serverPrepareHttphdr([]byte(""), vdirectBaseURL+"container/"+config.Alteon.Name, "DELETE", "")
 	_, err = radwareSender.ServerSend(r)
 	if err != nil {
 		err = fmt.Errorf("Faild to delete Lb instance %v", err)
 	}
-
 	return res, err
 }
 

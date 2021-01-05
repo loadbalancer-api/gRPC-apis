@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"lbservice"
-	"mocks"
+	"server/mocks"
 
 	"github.com/golang/mock/gomock"
 	"google.golang.org/grpc"
@@ -33,6 +33,45 @@ func bufDialer(context.Context, string) (net.Conn, error) {
 	return lis.Dial()
 }
 
+func TestCreateService(t *testing.T) {
+	ctx := context.Background()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
+	}
+
+	defer conn.Close()
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	radwareSender := mocks.NewMockSender(mockCtrl)
+	SetSender(radwareSender)
+	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
+
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil).Times(1)
+	client := lbservice.NewLoadBalancerServiceClient(conn)
+	req := &lbservice.CreateInstanceRequest{
+		Instance: &lbservice.Instance{
+			MgmtMacAddr:   "aaa.bbb.ccc",
+			MgmtIpAddr:    "1.2.3.4",
+			Label:         "inside",
+			Lic:           lbservice.InstanceLicense_value["LB_10GIG_LIC"],
+			LicToken:      "abc",
+			Vip:           "10.1.1.1",
+			LbUserName:    "admin",
+			LbPassword:    "Cisco@123",
+			LbHttpsPort:   443,
+			LbHealth:      lbservice.InstanceLbhealthchk_name[int32(lbservice.Instance_icmp)],
+			LbMetric:      lbservice.InstanceLbmetric_name[int32(lbservice.Instance_roundrobin)],
+			LbDsr:         true,
+			LbGroupName:   "group1",
+			LbServiceName: "svc1",
+			LbL4Port:      5001,
+		},
+	}
+
+	client.CreateService(ctx, req)
+}
 
 func TestConfigL3InterfacesService(t *testing.T) {
 	ctx := context.Background()
@@ -50,7 +89,7 @@ func TestConfigL3InterfacesService(t *testing.T) {
 	SetSender(radwareSender)
 	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
 
-	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil)
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil).Times(2)
 
 	client := lbservice.NewLoadBalancerServiceClient(conn)
 	interfaces := []*lbservice.L3Interface{
@@ -62,6 +101,17 @@ func TestConfigL3InterfacesService(t *testing.T) {
 			LbSecondaryIp:   "0.0.0.0",
 			LbIpMask:        "255.255.255.0",
 			LbPort:          1,
+			LbIsV4:          true,
+			EnableHa:        false,
+		},
+		{
+			Label:           "Inside",
+			LbInterfaceName: "int2",
+			LbVlan:          3,
+			LbPrimaryIp:     "1.1.1.200",
+			LbSecondaryIp:   "0.0.0.0",
+			LbIpMask:        "255.255.255.0",
+			LbPort:          2,
 			LbIsV4:          true,
 			EnableHa:        false,
 		},
@@ -94,7 +144,7 @@ func TestConfigL4FilterService(t *testing.T) {
 	radwareSender := mocks.NewMockSender(mockCtrl)
 	SetSender(radwareSender)
 	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
-	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil)
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil).Times(2)
 
 	client := lbservice.NewLoadBalancerServiceClient(conn)
 	rules := []*lbservice.L4Filter{
@@ -114,6 +164,24 @@ func TestConfigL4FilterService(t *testing.T) {
 			Protocol:        "any",
 			ReverseSession:  false,
 			ReturnToLastHop: false,
+			Op:              lbservice.L4Filter_Operation_name[int32(lbservice.L4Filter_ADD)],
+		},
+		{
+			Label:           "Inside",
+			Name:            "rule2",
+			RuleId:          101,
+			Act:             lbservice.L4FilterAction_name[int32(lbservice.L4Filter_redirect)],
+			LbIsV4:          true,
+			SrcIp:           "any",
+			SrcMask:         "0.0.0.0",
+			DstIp:           "any",
+			DstMask:         "0.0.0.0",
+			Group:           "Vdirect-ASAc-Group",
+			Port:            1,
+			Vlan:            "any",
+			Protocol:        "any",
+			ReverseSession:  true,
+			ReturnToLastHop: true,
 			Op:              lbservice.L4Filter_Operation_name[int32(lbservice.L4Filter_ADD)],
 		},
 	}
@@ -148,7 +216,7 @@ func TestProvisionEndPointService(t *testing.T) {
 	SetSender(radwareSender)
 	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
 
-	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil)
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil).Times(2)
 	client := lbservice.NewLoadBalancerServiceClient(conn)
 	eps := []*lbservice.EndPointCfg{
 		{
@@ -156,6 +224,14 @@ func TestProvisionEndPointService(t *testing.T) {
 			IpAddress:        "1.1.1.10",
 			Op:               lbservice.EndPointCfg_Operation_value["ADD"],
 			AsacInstanceName: "ASAc1",
+			LbGroupName:      "Vdirect-ASAc-Group",
+			LbServiceName:    "ASAc-lb-svc",
+		},
+		{
+			Label:            "Inside",
+			IpAddress:        "1.1.1.11",
+			Op:               lbservice.EndPointCfg_Operation_value["ADD"],
+			AsacInstanceName: "ASAc2",
 			LbGroupName:      "Vdirect-ASAc-Group",
 			LbServiceName:    "ASAc-lb-svc",
 		},
@@ -174,4 +250,59 @@ func TestProvisionEndPointService(t *testing.T) {
 	}
 }
 
+func TestDestroyService(t *testing.T) {
+	ctx := context.Background()
 
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
+	}
+
+	defer conn.Close()
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	radwareSender := mocks.NewMockSender(mockCtrl)
+	SetSender(radwareSender)
+	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil).Times(2)
+	client := lbservice.NewLoadBalancerServiceClient(conn)
+	req := &lbservice.DestroyInstanceRequest{
+		Label:         "Inside",
+		LbServiceName: "svc1",
+	}
+
+	res, err := client.DestroyService(ctx, req)
+	if err != nil {
+		t.Fatalf("error while calling destroyInstance RPC: %v", err)
+	}
+
+	if res.GetDestroyInstanceResp() != true {
+		t.Fatalf("Destory service test failed")
+	}
+}
+
+func TestQueryInstanceService(t *testing.T) {
+	ctx := context.Background()
+
+	conn, err := grpc.DialContext(ctx, "bufnet", grpc.WithContextDialer(bufDialer), grpc.WithInsecure())
+
+	if err != nil {
+		t.Fatalf("Failed to dial bufnet: %v", err)
+	}
+
+	defer conn.Close()
+	mockCtrl := gomock.NewController(t)
+	defer mockCtrl.Finish()
+	radwareSender := mocks.NewMockSender(mockCtrl)
+	SetSender(radwareSender)
+	reply := []byte(`{"uri" : "test", "targetUri" : "test", "complete":true}`)
+	radwareSender.EXPECT().ServerSend(gomock.Any()).Return(reply, nil).Times(2)
+	client := lbservice.NewLoadBalancerServiceClient(conn)
+
+	req := &lbservice.QueryInstanceRequest{Label: "inside"}
+
+	_, err = client.QueryInstanceService(ctx, req)
+	if err != nil {
+		t.Fatalf("error while calling dQueryInstance RPC: %v", err)
+	}
+}

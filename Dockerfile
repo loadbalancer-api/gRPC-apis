@@ -19,9 +19,6 @@ RUN pip3 install requests
 WORKDIR /workspace/api
 COPY api/lbservice/ ./lbservice
 
-WORKDIR /workspace/radware/mocks
-COPY radware/mocks/ ./
-
 WORKDIR /workspace/radware/server
 COPY radware/server/ ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -o ./server server.go
